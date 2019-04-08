@@ -1,0 +1,110 @@
+//------------------------------------------------------------------------------
+//Gameboy Header File
+//------------------------------------------------------------------------------
+constant DMG_ONLY(      0x00)
+constant DMG_CGB(       0x80)
+constant NO_SGB(        0x00)
+constant SGB_COMPAT(    0x03)
+
+//------------------------------------------------------------------------------
+//Header Data
+//------------------------------------------------------------------------------
+//                           12345678901234
+define header_name(         "BAD_APPLE     ")
+define header_cgb_flag(     DMG_ONLY)
+define header_new_lic(      "YM")
+define header_sgb_flag(     NO_SGB)
+define header_mapper(       0x19)
+define header_rom(          0x05)
+define header_ram(          0x00)
+define header_dest_code(    0x01)
+define header_old_lic(      0x33)
+define header_rom_ver(      0x00)
+define header_checksum(     0xAA)
+define header_rom_checksum( 0xDEAD)
+//------------------------------------------------------------------------------
+//Interrupt Vectors
+//------------------------------------------------------------------------------
+org(0x000040)
+vblank_vect:
+    jp vblank_isr
+    
+org(0x000048)
+lcd_stat_vect:
+    jp lcd_stat_isr
+    
+org(0x000050)
+timer_vect:
+    jp timer_isr
+    
+org(0x000058)
+serial_vect:
+    jp serial_isr
+    
+org(0x000060)
+joypad_vect:
+    jp joypad_isr
+    
+//------------------------------------------------------------------------------
+//Entry Point
+org(0x0100)
+init:
+    jp init_gameboy_func
+//------------------------------------------------------------------------------
+//Logo Data
+org(0x104)
+db 0xCE, 0xED, 0x66, 0x66, 0xCC, 0x0D, 0x00, 0x0B
+db 0x03, 0x73, 0x00, 0x83, 0x00, 0x0C, 0x00, 0x0D
+db 0x00, 0x08, 0x11, 0x1F, 0x88, 0x89, 0x00, 0x0E
+db 0xDC, 0xCC, 0x6E, 0xE6, 0xDD, 0xDD, 0xD9, 0x99
+db 0xBB, 0xBB, 0x67, 0x63, 0x6E, 0x0E, 0xEC, 0xCC
+db 0xDD, 0xDC, 0x99, 0x9F, 0xBB, 0xB9, 0x33, 0x3E
+
+//Name
+org(0x134)
+db {header_name}
+
+//CGB Flag
+org(0x143)
+db {header_cgb_flag}
+
+//New License Code
+org(0x144)
+db {header_new_lic}
+
+//SGB Flag
+org(0x146)
+db {header_sgb_flag}
+
+//Cartridge Type
+org(0x147)
+db {header_mapper}
+
+//ROM Size
+org(0x148)
+db {header_rom}
+
+//RAM Size
+org(0x149)
+db {header_ram}
+
+//Destination Code
+org(0x14A)
+db {header_dest_code}
+
+//Old License Code
+org(0x14B)
+db {header_old_lic}
+
+//Mask ROM Version
+org(0x14C)
+db {header_rom_ver}
+
+//Header Checksum
+org(0x14D)
+db {header_checksum}
+
+//Header Checksum
+org(0x14E)
+dw {header_rom_checksum}
+

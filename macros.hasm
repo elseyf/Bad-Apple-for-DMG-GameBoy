@@ -1,0 +1,106 @@
+//------------------------------------------------------------------------------
+//Defines
+//------------------------------------------------------------------------------
+constant false( 0)
+constant true(  1)
+constant FALSE( false)
+constant TRUE(  true)
+//------------------------------------------------------------------------------
+constant ROM_BANK_START(0x004000)
+constant RAM_START(     0x00C000)
+constant HRAM_START(    0x00FF80)
+//------------------------------------------------------------------------------
+//Basic Macros
+//------------------------------------------------------------------------------
+macro org(_addr) {
+    if ({_addr} < 0x4000) {
+        origin ({_addr} & 0x3FFF)
+    } else {
+        origin (((({_addr} & 0xFF0000) >> 2) | (({_addr} & 0x3FFF))))
+    }
+    base {_addr}
+}
+
+macro incbin(_name, _file) {
+    scope {_name}: {
+        insert {_file}
+        constant sizeof(pc() - {_name})
+    }
+}
+
+global variable var_addr(RAM_START)
+global variable hram_var_addr(HRAM_START)
+macro start_var() {
+    pushvar origin, base
+    base (var_addr)
+}
+macro end_var() {
+    if (pc() > 0xE000) {
+        error "Not enough space for variable..."
+    }
+    global variable var_addr(pc())
+    pullvar base, origin
+}
+macro start_hram_var() {
+    pushvar origin, base
+    base (hram_var_addr)
+}
+macro end_hram_var() {
+    if (pc() > 0xFFFF) {
+        error "Not enough space for HRAM variable..."
+    }
+    global variable hram_var_addr(pc())
+    pullvar base, origin
+}
+macro var(_name, _size) {
+    scope {_name}: {
+        base ({_name} + {_size})
+        constant sizeof({_size})
+    }
+}
+
+macro map_bank(_bank) {
+    if ({_bank} == 0) {
+        org(0x000150)
+    } else if ({_bank} > 255) {
+        error "Specified Bank is too big..."
+    } else {
+        if ({_bank} == 1) {
+            if ((pc() & 0x7FFF) > 0x4000) {
+                error "Not enough memory in Bank available..."
+            }
+            print "Bank ", (pc() >> 16), ":"; putchar(9)
+            if ({_bank} < 10) {
+                putchar(9)
+            }
+            print ((pc() & 0x7FFF) - 0x000000), " Bytes \n"
+        } else {
+            if ((pc() & 0xFFFF) > 0x8000) {
+                error "Not enough memory in Bank available..."
+            }
+            print "Bank ", (pc() >> 16), ":"; putchar(9)
+            if ((pc() >> 16) < 10) {
+                putchar(9)
+            }
+            print ((pc() & 0xFFFF) - 0x004000), " Bytes \n"
+        }
+        org(({_bank} << 16) | 0x4000)
+    }
+}
+
+macro ram_used() {
+    if (var_addr > 0xE000) {
+        error "Not enough memory in RAM available..."
+    }
+    print "RAM:"
+    putchar(9);putchar(9)
+    print var_addr-RAM_START, " Bytes \n"
+}
+macro hram_used() {
+    if (hram_var_addr > 0xFFFF) {
+        error "Not enough memory in HRAM available..."
+    }
+    print "HRAM:"
+    putchar(9);putchar(9)
+    print hram_var_addr-HRAM_START, " Bytes \n"
+}

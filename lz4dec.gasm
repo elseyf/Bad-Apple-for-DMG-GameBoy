@@ -1,0 +1,101 @@
+scope lz4dec_func: {
+    ld (MBC_ROM_BANK_SELECT),a
+    push hl
+    ld l,e
+    ld h,d
+    add hl,bc
+    ld a,l
+    ld (lz4size),a
+    ld a,h
+    ld (lz4size+1),a
+    pop hl
+    
+    get_literal_length:
+        ld a,(hl+)
+        push af
+        swap a
+        and 0x0F
+        ld b,0
+        ld c,a
+        jr z,check_end
+        cp 15
+        call z,get_length
+        call copy
+        
+    check_end:
+        ld a,(lz4size)
+        cp e
+        jr z,check_end_h
+        jr nc,get_match_offset
+        check_end_h:
+            ld a,(lz4size+1)
+            cp d
+            jr z,check_end_ret
+            jr nc,get_match_offset
+                check_end_ret:
+                pop af
+                ret
+                
+    get_match_offset:
+        ld a,e
+        sub (hl)
+        ld (lz4offset),a
+        inc hl
+        ld a,d
+        sbc (hl)
+        ld (lz4offset+1),a
+        inc hl
+        
+    get_match_length:
+        pop af
+        and 0x0F
+        add 4
+        ld b,0
+        ld c,a
+        cp 19
+        call z,get_length
+        
+        push hl
+        ld a,(lz4offset)
+        ld l,a
+        ld a,(lz4offset+1)
+        ld h,a
+        call copy
+        pop hl
+        
+        jr get_literal_length
+        
+    scope get_length: {
+        ld a,(hl+)
+        cp 0xFF
+        jr nz,end
+            add c
+            ld c,a
+            jr nc,get_length
+                inc b
+                jr get_length
+        end:
+            add c
+            ld c,a
+            ret nc
+                inc b
+                ret
+    }
+    
+    scope copy: {
+        inc b
+        xor a
+        or c
+        jr nz,loop
+            dec b
+        loop:
+            ld a,(hl+)
+            ld (de),a
+            inc de
+            dec c
+            jr nz,loop
+                dec b
+                jr nz,loop
+                    ret
+    }
+}

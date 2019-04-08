@@ -1,0 +1,216 @@
+//------------------------------------------------------------------------------
+//Macros
+//------------------------------------------------------------------------------
+//(36 * _size) cycles
+macro fast_copy(_size) {
+    variable i(0)
+    while (i < {_size}) {
+        pop bc
+        ld a,c
+        ld (hl+),a
+        ld a,b
+        ld (hl+),a
+        variable i(i + 1)
+    }
+}
+//------------------------------------------------------------------------------
+//Functions
+//------------------------------------------------------------------------------
+scope vblank_isr: {
+    //VBlank is (10 * 456) = 4560 cycles long
+    push af
+    
+    ld a,GB_PALETTE_TOP
+    ldh (REG_BGP),a
+    xor a
+    ldh (REG_BG_SCY),a
+    ld a,true
+    ldh (vblank_happened),a
+    
+    ld a,(frame_time_counter)
+    inc a
+    ld (frame_time_counter),a
+    cp (frame_time - 1)
+    jp c,end                                        //128 cycles
+        push bc
+        push de
+        push hl                                     //+48 cycles
+        
+        ld (sp_buffer),sp
+        ld sp,frame_buffer
+        ld hl,BG_CHR                                //+44 cycles
+        fast_copy(112)                              //+(36*112) = 4032 cycles
+        
+        scope copy: {
+            disable_int(0xFF)
+            enable_int(LCD_STAT_INT)
+            clear_if(0xFF)
+            ld e,GB_PALETTE_TOP
+            
+            loop:
+                xor a
+                ldh (REG_IF),a
+                
+                ldh a,(REG_LY)
+                cp (ly_change_pal - 1)
+                jr nz,check_double_line             //56 cycles
+                    ld e,GB_PALETTE_BOTTOM
+                    ld a,-ly_change_pal
+                    jr halt_for_hblank              //+28 cycles
+                check_double_line:
+                    ldh a,(REG_LY)
+                    rra
+                    ldh a,(REG_BG_SCY)
+                    jr nc,halt_for_hblank           //+40 cycles
+                        dec a                       //+4 cycles
+                halt_for_hblank:
+                    halt()
+                    ldh (REG_BG_SCY),a
+                    ld a,e
+                    ldh (REG_BGP),a                 //+32 cycles
+                    fast_copy(4)                    //+(36*4) = 144 cycles
+                    
+                    ldh a,(REG_LY)
+                    cp 143
+                    jr nz,loop
+        }
+        
+        fast_copy(112)                              //+(36*112) = 4032 cycles
+        ld a,GB_PALETTE_TOP
+        ldh (REG_BGP),a
+        xor a
+        ldh (REG_BG_SCY),a
+        
+        ld (frame_time_counter),a
+        ld a,true
+        ldh (vblank_happened),a
+        
+        enable_int(LCD_STAT_INT | VBLANK_INT)
+        xor a
+        ldh (REG_IF),a
+        
+        ld sp,sp_buffer
+        pop hl
+        ld sp,hl
+        
+        pop hl
+        pop de
+        pop bc
+    end:
+        pop af
+        reti
+}
+
+scope lcd_stat_isr: {
+    push af
+    
+    ldh a,(REG_LY)
+    cp (ly_change_pal - 1)
+    jr nz,check_double_line
+        ld a,GB_PALETTE_BOTTOM
+        ldh (REG_BGP),a
+        ld a,-ly_change_pal
+        ldh (REG_BG_SCY),a
+    check_double_line:
+        ldh a,(REG_LY)
+        rra
+        jr nc,end
+            ldh a,(REG_BG_SCY)
+            dec a
+            ldh (REG_BG_SCY),a
+    end:
+        pop af
+        reti
+}
+
+scope timer_isr: {
+    reti
+}
+
+scope serial_isr: {
+    reti
+}
+
+scope joypad_isr: {
+    reti
+}
+
+scope init_gameboy_func: {
+    //This function is called at startup
+    ld c,a                  //Registers A and B identify
+                            //the GameBoy Type after reset
+    ld hl,0xC000            //clear WRAM at
+    ld de,0x2000            //0xC000 - 0xDFFF
+    xor a
+    clear:
+        ld (hl+),a
+        dec de
+        cp e
+        jr nz, clear
+            cp d
+            jr nz, clear
+        
+        ld hl,0xFF80
+    hram_clear:
+        xor a
+        ld (hl+),a
+        ld a,l
+        cp 0xFF
+        jr nz, hram_clear
+        
+        ld a,c              //DMG: bc == 0x0001
+        ld (gb_type),a      //GBP: bc == 0x00FF
+        ld a,b              //CGB: bc == 0x0011
+        and 1               //GBA: bc == 0x0111
+        ld (gb_type+1),a
+        
+        ld sp,0xE000        //Stack points to RAM
+        
+        jp ROM_START_ADDR   //actual start address
+}
+
+scope copy_func: {
+    inc b
+    xor a
+    or c
+    jr nz,loop
+        dec b
+    loop:
+        ld a,(de)
+        ld (hl+),a
+        inc de
+        dec c
+        jr nz,loop
+            dec b
+            jr nz,loop
+                ret
+}
+
+scope read_joypad: {
+    ld a,(joy0)
+    ld (old_joy0),a
+    
+    ld hl,REG_JOY0
+    ld (hl),KEY_DIR
+    ld a,(hl)
+    ld a,(hl)
+    ld a,(hl)
+    ld a,(hl)
+    swap a
+    and 0xF0
+    ld b,a
+    
+    ld (hl),KEY_BTN
+    ld c,(hl)
+    ld c,(hl)
+    ld c,(hl)
+    ld a,(hl)
+    and 0x0F
+    or b
+    
+    ld (hl),KEY_OFF
+    cpl
+    ld (joy0),a
+    ret
+}
+

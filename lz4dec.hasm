@@ -1,0 +1,20 @@
+//------------------------------------------------------------------------------
+// LZ4 Decoder for Gameboy, by el_seyf
+// Decodes data streams compressed with LZ4
+// Does not handle framed blocks
+//------------------------------------------------------------------------------
+start_var()
+    var(lz4size, 2)
+    var(lz4offset, 2)
+end_var()
+
+macro lz4dec(_dst, _src, _size) {
+    ld a,{_src} >> 16
+    ld hl,{_src}
+    ld de,{_dst}
+    ld bc,{_size}
+    call lz4dec_func
+}
+
+include "lz4dec.gasm"
+

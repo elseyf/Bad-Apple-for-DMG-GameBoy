@@ -1,0 +1,287 @@
+//------------------------------------------------------------------------------
+//Defines
+//------------------------------------------------------------------------------
+constant ROM_START_ADDR( start)
+
+constant OBJ_CHR_ADDR(   0x8000)
+constant BG_CHR_ADDR(    0x8000)
+constant BG_MAP_ADDR(    0x9800)
+constant WIN_MAP_ADDR(   0x9C00)
+constant OBJ_CHR(        OBJ_CHR_ADDR)
+constant BG_CHR(         BG_CHR_ADDR)
+constant BG_MAP(         BG_MAP_ADDR)
+constant WIN_MAP(        WIN_MAP_ADDR)
+
+constant WRAM(           0xC000)
+constant HRAM(           0xFF80)
+
+constant REG_JOY0(           0xFF00)
+    constant KEY_OFF(        0x30)
+    constant KEY_DIR(        0x20)
+    constant KEY_BTN(        0x10)
+    constant KEY_DOWN(       0x80)
+    constant KEY_UP(         0x40)
+    constant KEY_LEFT(       0x20)
+    constant KEY_RIGHT(      0x10)
+    constant KEY_START(      0x08)
+    constant KEY_SELECT(     0x04)
+    constant KEY_B(          0x02)
+    constant KEY_A(          0x01)
+    constant KEY_ANY_DIR(    0xF0)
+    constant KEY_ANY_BTN(    0x0F)
+
+constant REG_DIV(            0xFF04)
+constant REG_TIMA(           0xFF05)
+constant REG_TMA(            0xFF06)
+constant REG_TAC(            0xFF07)
+
+constant REG_IF(             0xFF0F)
+    constant JOYPAD_IF(      0x10)
+    constant SERIAL_IF(      0x08)
+    constant TIMER_IF(       0x04)
+    constant LCD_STAT_IF(    0x02)
+    constant VBLANK_IF(      0x01)
+
+constant REG_LCDC(           0xFF40)
+    constant LCDC_DISPLAY_ENABLE(            0x80)
+    constant LCDC_WIN_MAP_SELECT(            0x40)
+    constant LCDC_WIN_ENABLE(                0x20)
+    constant LCDC_BG_WIN_TILE_DATA_SELECT(   0x10)
+    constant LCDC_BG_MAP_SELECT(             0x08)
+    constant LCDC_OBJ_SIZE(                  0x04)
+    constant LCDC_OBJ_ENABLE(                0x02)
+    constant LCDC_BG_ENABLE(                 0x01)
+
+constant REG_LCD_STAT(       0xFF41)
+    constant LCD_STAT_LYC_LY_INT(            0x40)
+    constant LCD_STAT_MODE_2_INT(            0x20)
+    constant LCD_STAT_MODE_1_INT(            0x10)
+    constant LCD_STAT_MODE_0_INT(            0x08)
+    constant LCD_STAT_LYC_LY_EQ_FLAG(        0x04)
+    constant LCD_STAT_MODE_FLAG(             0x03)
+    constant LCD_STAT_MODE_0(                0x00)
+    constant LCD_STAT_MODE_1(                0x01)
+    constant LCD_STAT_MODE_2(                0x02)
+    constant LCD_STAT_MODE_3(                0x03)
+
+constant REG_BG_SCY(         0xFF42)
+constant REG_BG_SCX(         0xFF43)
+
+constant REG_LY(             0xFF44)
+constant REG_LYC(            0xFF45)
+
+constant REG_OAM_DMA(        0xFF46)
+
+constant REG_BGP(            0xFF47)
+constant REG_OBP0(           0xFF48)
+constant REG_OBP1(           0xFF49)
+
+constant REG_WY(            0xFF4A)
+constant REG_WX(            0xFF4B)
+
+constant REG_INT(            0xFFFF)
+    constant JOYPAD_INT(     0x10)
+    constant SERIAL_INT(     0x08)
+    constant TIMER_INT(      0x04)
+    constant LCD_STAT_INT(   0x02)
+    constant VBLANK_INT(     0x01)
+
+constant SCREEN_WIDTH(   160)
+constant SCREEN_HEIGHT(  144)
+
+constant DMG( 0x0001)
+constant GBP( 0x00FF)
+constant CGB( 0x0011)
+constant GBA( 0x0111)
+
+constant MBC_ROM_BANK_SELECT(     0x2000)
+
+constant GB_PALETTE(0xE4)
+constant GB_PALETTE_TOP(    0x33)
+constant GB_PALETTE_BOTTOM( 0x0F)
+//------------------------------------------------------------------------------
+//Variables
+//------------------------------------------------------------------------------
+start_hram_var()
+    var(gb_type, 2)
+    var(joy0, 1)
+    var(old_joy0, 1)
+    var(scroll_x, 1)
+    var(scroll_y, 1)
+    var(lyc, 1)
+    var(sp_buffer, 2)
+    var(palette, 1)
+    var(vblank_happened, 1)
+    var(rom_bank, 1)
+end_hram_var()
+//------------------------------------------------------------------------------
+//Macros
+//------------------------------------------------------------------------------
+macro nop(evaluate _val) {
+    while ({_val} > 0) {
+        nop
+        evaluate _val({_val} - 1)
+    }
+}
+
+macro halt() {
+    halt; nop
+}
+
+macro enable_int(_int) {
+    ldh a,(REG_INT)
+    or {_int}
+    ldh (REG_INT),a
+}
+
+macro disable_int(_int) {
+    ldh a,(REG_INT)
+    and ~{_int}
+    ldh (REG_INT),a
+}
+
+macro set_if(_flag) {
+    ldh a,(REG_IF)
+    or {_flag}
+    ldh (REG_IF),a
+}
+
+macro clear_if(_flag) {
+    ldh a,(REG_IF)
+    and ~{_flag}
+    ldh (REG_IF),a
+}
+
+macro init_gameboy() {
+    jp init_gameboy_func
+}
+
+macro enable_display() {
+    ldh a,(REG_LCDC)
+    or LCDC_DISPLAY_ENABLE
+    ldh (REG_LCDC),a
+}
+
+macro scope disable_display() {
+    wait{#}:
+        ldh a,(REG_LY)
+        cp 144
+        jr c, wait{#}
+    ldh a,(REG_LCDC)
+    and ~LCDC_DISPLAY_ENABLE
+    ldh (REG_LCDC),a
+}
+
+macro enable_bg() {
+    ldh a,(REG_LCDC)
+    or LCDC_BG_ENABLE
+    ldh (REG_LCDC),a
+}
+
+macro disable_bg() {
+    ldh a,(REG_LCDC)
+    and ~LCDC_BG_ENABLE
+    ldh (REG_LCDC),a
+}
+
+macro enable_win() {
+    ldh a,(REG_LCDC)
+    or LCDC_WIN_ENABLE
+    ldh (REG_LCDC),a
+}
+
+macro disable_win() {
+    ldh a,(REG_LCDC)
+    and ~LCDC_WIN_ENABLE
+    ldh (REG_LCDC),a
+}
+
+macro enable_obj() {
+    ldh a,(REG_LCDC)
+    or LCDC_OBJ_ENABLE
+    ldh (REG_LCDC),a
+}
+
+macro disable_obj() {
+    ldh a,(REG_LCDC)
+    and ~LCDC_OBJ_ENABLE
+    ldh (REG_LCDC),a
+}
+
+macro set_bg_win_tile_offset(_flag) {
+    ldh a,(REG_LCDC)
+    if ({_flag} == 0) {
+        and ~LCDC_BG_WIN_TILE_DATA_SELECT
+    } else {
+        or LCDC_BG_WIN_TILE_DATA_SELECT
+    }
+    ldh (REG_LCDC),a
+}
+
+macro set_bg_map_offset(_flag) {
+    ldh a,(REG_LCDC)
+    if ({_flag} == 0) {
+        and ~LCDC_BG_MAP_SELECT
+    } else {
+        or LCDC_BG_MAP_SELECT
+    }
+    ldh (REG_LCDC),a
+}
+
+macro set_win_map_offset(_flag) {
+    ldh a,(REG_LCDC)
+    if ({_flag} == 0) {
+        and ~LCDC_WIN_MAP_SELECT
+    } else {
+        or LCDC_WIN_MAP_SELECT
+    }
+    ldh (REG_LCDC),a
+}
+
+macro copy(_dst, _src, _size) {
+    set_rom_bank({_src})
+    ld hl,{_dst}
+    ld de,{_src}
+    ld bc,{_size}
+    call copy_func
+}
+
+macro set_bg_chr(_vaddr, _data, _size) {
+    set_rom_bank({_data})
+    copy((BG_CHR + {_vaddr}), {_data}, {_size})
+}
+
+macro set_bg_map(_vaddr, _data, _size) {
+    copy((BG_MAP + {_vaddr}), {_data}, {_size})
+}
+
+macro scope key_push(_key) {
+    ld a,(joy0)
+    and {_key}
+    jr z,end{#}
+        ld a,(old_joy0)
+        cpl
+        and {_key}
+    end{#}:
+}
+macro scope key_hold(_key) {
+    ld a,(joy0)
+    and {_key}
+}
+macro scope key_release(_key) {
+    ld a,(old_joy0)
+    and {_key}
+    jr z,end{#}
+        ld a,(joy0)
+        cpl
+        and {_key}
+    end{#}:
+}
+
+macro set_rom_bank(_bank) {
+    ld a,{_bank} >> 16
+    ld (MBC_ROM_BANK_SELECT),a
+}
+
+include "gb.gasm"
+

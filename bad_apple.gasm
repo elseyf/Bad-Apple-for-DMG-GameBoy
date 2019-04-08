@@ -1,0 +1,191 @@
+//------------------------------------------------------------------------------
+// Bad Apple on DMG - by el_seyf
+// Demonstrates video playing capabilities of the GameBoy
+// 
+// The Video is encoded to 160x72 pixels, playing at 15fps
+// and is streched to fit the screen
+// (An empty bar of pixels was added to each frame to evenly fit into 10 tiles
+//  vertically, this is required due to how the frames are encoded)
+// Frames are compressed with standard LZ4 compression
+// Decompressing a frame is handled in 3 frames (max), tile tranfers in 1 frame
+// The full video is fit into 1MB of ROM space
+//------------------------------------------------------------------------------
+// Known Issues:
+// - Line 144 is for some unknown reason just black
+// - missing music (technically not an issue)
+//------------------------------------------------------------------------------
+arch gb.cpu
+//------------------------------------------------------------------------------
+//Includes
+//------------------------------------------------------------------------------
+include "macros.hasm"
+//------------------------------------------------------------------------------
+include "header.hasm"
+//------------------------------------------------------------------------------
+map_bank(0)
+    include "gb.hasm"
+    include "lz4dec.hasm"
+//------------------------------------------------------------------------------
+// Defines and Constants
+//------------------------------------------------------------------------------
+constant frame_width(160)
+constant frame_height(80)
+constant fps(15)
+constant num_frames(3293)
+
+//Calculated values used in code
+constant frame_size((frame_width * frame_height) / 8)
+constant frame_time(60 / fps)
+constant ly_change_pal(frame_height - 1)
+//------------------------------------------------------------------------------
+// Variables
+//------------------------------------------------------------------------------
+start_var()
+    var(frame_counter, 2)
+    var(frame_time_counter, 1)
+    var(frame_buffer, frame_size * 2)
+end_var()
+//------------------------------------------------------------------------------
+start:
+    disable_int(0xFF)
+    disable_display()
+    
+    set_bg_win_tile_offset(1)
+    set_bg_map_offset(0)
+    
+    xor a
+    ldh (REG_BG_SCX),a
+    ldh (REG_BG_SCY),a
+    
+    ld (frame_counter),a
+    ld (frame_counter+1),a
+    call lz4dec_frame
+    
+    set_bg_chr(0x0000, frame_buffer, frame_size)
+    set_bg_map(0x0000, frame_map, frame_map.sizeof)
+    
+    ld a,LCD_STAT_MODE_0_INT
+    ldh (REG_LCD_STAT),a
+    
+    enable_bg()
+    disable_win()
+    disable_obj()
+    enable_display()
+    
+    enable_int(LCD_STAT_INT | VBLANK_INT)
+    //enable_int(VBLANK_INT)
+    xor a
+    ldh (REG_IF),a
+    ei
+main:
+    -;  halt()
+        ld a,(frame_time_counter)
+        or a
+        jr nz,-
+    call lz4dec_frame
+    ld hl,frame_counter
+    inc (hl)
+    jr nz,+
+        inc hl
+        inc (hl)
+        dec hl
+    +;  ld a,(hl+)
+        cp num_frames
+        jr c,+
+            ld a,(hl)
+            cp num_frames >> 8
+            jr c,+
+                disable_int(0xFF)
+                -; halt(); jr -
+    +;  jp main
+//------------------------------------------------------------------------------
+scope lz4dec_frame: {
+    set_rom_bank(file_table)
+    ld a,(frame_counter)
+    ld c,a
+    ld a,(frame_counter+1)
+    ld b,a
+    ld hl,0
+    add hl,bc
+    add hl,bc
+    add hl,bc
+    ld bc,file_table
+    add hl,bc
+    ld a,(hl+)
+    ld c,a
+    ld a,(hl+)
+    ld b,a
+    ld a,(hl)
+    ld l,c
+    ld h,b
+    ld de,frame_buffer
+    ld bc,frame_size
+    call lz4dec_func
+    ret
+}
+//------------------------------------------------------------------------------
+// Background Tile Map used by the GameBoy to construct the frame:
+scope frame_map: {
+    variable i(0)
+    while (i < ((frame_width * frame_height) / 64)) {
+        db i
+        variable i(i+1)
+        if (i % 20 == 0) {
+            variable j(0)
+            while (j < 12) {
+                db j
+                variable j(j+1)
+            }
+        }
+    }
+    constant sizeof(pc() - frame_map)
+}
+//------------------------------------------------------------------------------
+include "gb_lz4/table.hasm"
+//------------------------------------------------------------------------------
+// Frames that were mapped to Bank 64 moved to Bank 0
+    incbin(pic_3258, "./gb_lz4/out_3258.png.tile.lz4")
+    incbin(pic_3259, "./gb_lz4/out_3259.png.tile.lz4")
+    incbin(pic_3260, "./gb_lz4/out_3260.png.tile.lz4")
+    incbin(pic_3261, "./gb_lz4/out_3261.png.tile.lz4")
+    incbin(pic_3262, "./gb_lz4/out_3262.png.tile.lz4")
+    incbin(pic_3263, "./gb_lz4/out_3263.png.tile.lz4")
+    incbin(pic_3264, "./gb_lz4/out_3264.png.tile.lz4")
+    incbin(pic_3265, "./gb_lz4/out_3265.png.tile.lz4")
+    incbin(pic_3266, "./gb_lz4/out_3266.png.tile.lz4")
+    incbin(pic_3267, "./gb_lz4/out_3267.png.tile.lz4")
+    incbin(pic_3268, "./gb_lz4/out_3268.png.tile.lz4")
+    incbin(pic_3269, "./gb_lz4/out_3269.png.tile.lz4")
+    incbin(pic_3270, "./gb_lz4/out_3270.png.tile.lz4")
+    incbin(pic_3271, "./gb_lz4/out_3271.png.tile.lz4")
+    incbin(pic_3272, "./gb_lz4/out_3272.png.tile.lz4")
+    incbin(pic_3273, "./gb_lz4/out_3273.png.tile.lz4")
+    incbin(pic_3274, "./gb_lz4/out_3274.png.tile.lz4")
+    incbin(pic_3275, "./gb_lz4/out_3275.png.tile.lz4")
+    incbin(pic_3276, "./gb_lz4/out_3276.png.tile.lz4")
+    incbin(pic_3277, "./gb_lz4/out_3277.png.tile.lz4")
+    incbin(pic_3278, "./gb_lz4/out_3278.png.tile.lz4")
+    incbin(pic_3279, "./gb_lz4/out_3279.png.tile.lz4")
+    incbin(pic_3280, "./gb_lz4/out_3280.png.tile.lz4")
+    incbin(pic_3281, "./gb_lz4/out_3281.png.tile.lz4")
+    incbin(pic_3282, "./gb_lz4/out_3282.png.tile.lz4")
+    incbin(pic_3283, "./gb_lz4/out_3283.png.tile.lz4")
+    incbin(pic_3284, "./gb_lz4/out_3284.png.tile.lz4")
+    incbin(pic_3285, "./gb_lz4/out_3285.png.tile.lz4")
+    incbin(pic_3286, "./gb_lz4/out_3286.png.tile.lz4")
+    incbin(pic_3287, "./gb_lz4/out_3287.png.tile.lz4")
+    incbin(pic_3288, "./gb_lz4/out_3288.png.tile.lz4")
+    incbin(pic_3289, "./gb_lz4/out_3289.png.tile.lz4")
+    incbin(pic_3290, "./gb_lz4/out_3290.png.tile.lz4")
+    incbin(pic_3291, "./gb_lz4/out_3291.png.tile.lz4")
+    incbin(pic_3292, "./gb_lz4/out_3292.png.tile.lz4")
+    incbin(pic_3293, "./gb_lz4/out_3293.png.tile.lz4")
+//------------------------------------------------------------------------------
+include "gb_lz4/files.hasm"
+//------------------------------------------------------------------------------
+map_bank(64)
+//------------------------------------------------------------------------------
+//Print Information of built ROM:
+ram_used()
+hram_used()
+//------------------------------------------------------------------------------
